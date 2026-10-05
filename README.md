@@ -131,7 +131,7 @@ Los notebooks 04-06 son experimentos: **la app no los usa** y siempre recomienda
 
 ### Cómo ejecutarlos en Google Colab
 
-Abre el notebook en Colab (*Archivo → Abrir cuaderno → GitHub* y pega la URL del repo) y ejecútalo de arriba abajo. Todos empiezan con una celda de preparación que, en Colab, clona el repo, instala las dependencias con las versiones del proyecto y entra en la carpeta del repo; en local no hace nada.
+Abre el notebook en Colab (*Archivo → Abrir cuaderno → GitHub* y pega la URL del repo) y ejecútalo de arriba abajo. Todos empiezan con una celda de preparación que, en Colab, clona el repo, instala las dependencias con las versiones del proyecto y entra en la carpeta del repo; en local no hace nada. **La primera vez en Colab el entorno se reinicia solo** (la sesión se cierra y Colab lo avisa): se actualizaron librerías que ya estaban cargadas. Es lo esperado; vuelve a ejecutar desde la primera celda y sigue.
 
 * **Cada notebook funciona por separado.** Colab abre cada uno en una máquina distinta, así que el 02 no ve la salida del 01 de otra sesión: parte del CSV que ya está en el repo (`recetas_limpias.csv`), y el 03 parte de `recetas_modelo.csv`.
 * **El 01 es el único que lee datos crudos.** Los descarga de Drive a una carpeta temporal (nunca dentro del repo) y escribe `data/processed/recetas_limpias.csv`.
