@@ -1,0 +1,16 @@
+{
+  "installCommand": "cd frontend && npm ci",
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/dist/chefwise/browser",
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 30,
+      "includeFiles": "{src,backend,data/processed,models/recetas_modelo}/**",
+      "excludeFiles": "{models/recetas_modelo/recipe_embeddings.npy,**/*.ipynb}"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}

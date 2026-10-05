@@ -1,0 +1,85 @@
+<a class="back-link" routerLink="/">← Inicio</a>
+<h1 class="page-title">Con lo que tengo</h1>
+<p class="page-sub">Agrega lo que hay en tu cocina, poco o mucho, y te sugerimos qué preparar.</p>
+
+@if (recipeService.activeAllergyLabels().length) {
+  <p class="prefs-note">
+    {{ recipeService.allowAllergenRecipes() ? 'Con aviso de' : 'Sin' }} {{ recipeService.activeAllergyLabels().join(', ') }} ·
+    <a routerLink="/mi-cocina" [queryParams]="{ tab: 'preferencias' }">Editar alergias</a>
+  </p>
+  <label class="switch-row allow-allergens" for="allow-allergens">
+    <input
+      id="allow-allergens"
+      type="checkbox"
+      role="switch"
+      [checked]="recipeService.allowAllergenRecipes()"
+      (change)="setAllowAllergens($any($event.target).checked)"
+    />
+    <span>Mostrar también recetas con mis alergias (te avisaremos en cada una)</span>
+  </label>
+}
+
+<div class="field">
+  <label>Ingredientes disponibles</label>
+  <p class="input-hint">Escribe cada ingrediente y presiona Enter para agregarlo.</p>
+  <div class="tag-input">
+    @for (ing of ingredients(); track $index) {
+      <span class="ing">
+        {{ ing }}
+        <button (click)="removeIngredient($index)" title="Quitar">×</button>
+      </span>
+    }
+    <input #ingInput type="text" placeholder="Agregar ingrediente…" (keydown.enter)="addIngredientOnEnter($event, ingInput)" />
+  </div>
+</div>
+
+<div class="field">
+  <label class="switch-row" for="fewest-extras">
+    <input
+      id="fewest-extras"
+      type="checkbox"
+      role="switch"
+      [checked]="fewestExtras()"
+      (change)="setFewestExtras($any($event.target).checked)"
+    />
+    <span>Con el menor número de ingredientes extra</span>
+  </label>
+</div>
+
+<button class="btn-primary" [disabled]="loading() || !ingredients().length" (click)="search()">Buscar qué puedo cocinar</button>
+
+<div style="margin-top:32px;"></div>
+@if (coverageNote(); as note) {
+  <p class="coverage-note" role="status">{{ note }}</p>
+}
+<div class="results-grid">
+  @for (r of visibleResults(); track r.id) {
+    <app-recipe-card
+      [recipe]="r"
+      [ingredientsTotal]="ingredientsTotal()"
+      (toggleFavorite)="onToggleFavorite($event)"
+      (toggleSaved)="onToggleSaved($event)"
+      (hide)="onHide($event)"
+    />
+  } @empty {
+    @if (loading()) {
+      <p class="page-sub">Buscando recetas…</p>
+    } @else if (error()) {
+      <p class="page-sub" role="alert">{{ error() }}</p>
+    } @else if (searched()) {
+      <p class="page-sub">No encontramos recetas con esos ingredientes.</p>
+    }
+  }
+</div>
+@if (visibleResults().length && error()) {
+  <p class="page-sub" role="alert" style="margin-top:12px;">{{ error() }}</p>
+}
+@if (searched() && visibleResults().length) {
+  @if (hasMore()) {
+    <button class="btn-secondary more-btn" type="button" [disabled]="loadingMore()" (click)="loadMore()">
+      {{ loadingMore() ? 'Buscando…' : 'Buscar más opciones' }}
+    </button>
+  } @else {
+    <p class="page-sub end-note">Ya no hay más recetas con estos ingredientes.</p>
+  }
+}

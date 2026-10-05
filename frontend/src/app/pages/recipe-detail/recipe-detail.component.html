@@ -1,0 +1,76 @@
+<button class="back-link back-button" type="button" (click)="goBack()">← Regresar</button>
+
+@if (recipe(); as r) {
+  <div class="detail-head">
+    <div>
+      <h1>{{ r.name }}</h1>
+      <div class="detail-meta">
+        @if (r.country) { <span>{{ r.country }}</span> }
+        @if (r.minutes) { <span>{{ r.minutes }} min</span> }
+        @if (r.servings) { <span>{{ r.servings }} porciones</span> }
+        @if (r.difficulty) { <span>{{ difficultyLabels[r.difficulty] }}</span> }
+        @if (r.sourceUrl) { <a [href]="r.sourceUrl" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;">Receta original</a> }
+      </div>
+      @if (allergens().length) {
+        <div class="allergen-warn">Ojo: contiene {{ allergens().join(', ') }}, que marcaste en tus alergias.</div>
+      }
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+      <button class="icon-btn" [class.on]="r.isFavorite" style="width:36px;height:36px;border:1px solid var(--line);" title="Favorita" (click)="toggleFavorite()">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M12 21s-7-4.35-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.65-9.5 9-9.5 9z" />
+        </svg>
+      </button>
+      <button class="icon-btn" [class.on]="r.isSaved" style="width:36px;height:36px;border:1px solid var(--line);" title="Guardar para después" (click)="toggleSaved()">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M6 3h12v18l-6-4-6 4V3z" />
+        </svg>
+      </button>
+      @if (isHidden()) {
+        <button class="btn-secondary" type="button" (click)="unhide()">Mostrar de nuevo</button>
+      } @else {
+        <button class="btn-secondary" type="button" title="No volver a mostrar esta receta en recomendaciones" (click)="hide()">No volver a mostrar</button>
+      }
+      @if (r.lastCookedAt) {
+        <button class="btn-primary" type="button" disabled>Cocinado ✓</button>
+        <button class="link-btn" type="button" (click)="removeFromHistory()">Quitar del historial</button>
+      } @else {
+        <button class="btn-primary" type="button" (click)="markCooked()">Cociné esto</button>
+      }
+    </div>
+  </div>
+  <p class="sr-status" aria-live="polite">{{ cookedAnnouncement() }}</p>
+
+  <div class="two-col">
+    <div>
+      <p class="section-label">Ingredientes</p>
+      @if (r.ingredients.length) {
+        <ul class="ing-list">
+          @for (ing of r.ingredients; track $index) {
+            <li><span>{{ ing.name }}</span><span>{{ ing.amount }}</span></li>
+          }
+        </ul>
+      } @else {
+        <p class="page-sub">Esta receta no tiene ingredientes registrados.</p>
+      }
+    </div>
+    <div>
+      <p class="section-label">Preparación</p>
+      @if (r.steps.length) {
+        <ol class="steps">
+          @for (step of r.steps; track $index) {
+            <li>{{ step }}</li>
+          }
+        </ol>
+      } @else {
+        <p class="page-sub">Esta receta no tiene instrucciones registradas.</p>
+      }
+    </div>
+  </div>
+} @else {
+  @switch (state().status) {
+    @case ('loading') { <p class="page-sub">Cargando receta…</p> }
+    @case ('not-found') { <p class="page-sub">No encontramos esta receta.</p> }
+    @default { <p class="page-sub" role="alert">No pudimos cargar la receta. Revisa que el backend esté en marcha e inténtalo de nuevo.</p> }
+  }
+}

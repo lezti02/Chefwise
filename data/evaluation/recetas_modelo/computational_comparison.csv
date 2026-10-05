@@ -1,0 +1,7 @@
+Qué se mide,TF-IDF,Embeddings
+Tamaño de cada receta,"5,436 palabras (casi todas en cero)",384 números (todos con valor)
+Tiempo para armarlo,0.2 s en CPU,26 s en 'mps:0' | ~131 s en CPU (estimado)
+Archivos,matriz 6.1 MB + vectorizador 0.1 MB,matriz 44.2 MB
+Necesita un modelo externo,no,sí: 488.2 MB
+Receta → Top-10 (mediana),3.4 ms,2.1 ms
+Texto → Top-10 (mediana),2.9 ms,9.7 ms en 'mps:0' | 10.6 ms en CPU

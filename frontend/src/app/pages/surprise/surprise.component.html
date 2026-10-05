@@ -1,0 +1,123 @@
+<a class="back-link" routerLink="/">← Inicio</a>
+<h1 class="page-title">Sorpréndeme</h1>
+<p class="page-sub">Elige lo que se ajuste a este momento. Buscamos algo que aún no has probado.</p>
+
+@if (recipeService.activeAllergyLabels().length) {
+  <p class="prefs-note">
+    {{ recipeService.allowAllergenRecipes() ? 'Con aviso de' : 'Sin' }} {{ recipeService.activeAllergyLabels().join(', ') }} ·
+    <a routerLink="/mi-cocina" [queryParams]="{ tab: 'preferencias' }">Editar alergias</a>
+  </p>
+  <label class="switch-row allow-allergens" for="allow-allergens">
+    <input
+      id="allow-allergens"
+      type="checkbox"
+      role="switch"
+      [checked]="recipeService.allowAllergenRecipes()"
+      (change)="setAllowAllergens($any($event.target).checked)"
+    />
+    <span>Mostrar también recetas con mis alergias (te avisaremos en cada una)</span>
+  </label>
+} @else {
+  <p class="prefs-note">
+    ¿Tienes alguna alergia? <a routerLink="/mi-cocina" [queryParams]="{ tab: 'preferencias' }">Agrégala</a> y no te recomendaremos esos ingredientes.
+  </p>
+}
+
+<p class="section-label">Categorías</p>
+@if (metadataLoading()) {
+  <div class="chip-row">
+    <span class="page-sub">Cargando categorías…</span>
+  </div>
+} @else if (metadataError()) {
+  <div class="chip-row">
+    <span class="page-sub" role="alert">No pudimos cargar las categorías y países.</span>
+  </div>
+} @else {
+  <div class="category-groups">
+    @for (group of categoryGroups(); track group.title) {
+      <div class="category-group">
+        <span class="category-group-title">{{ group.title }}</span>
+        <div class="chip-row">
+          @for (tag of group.tags; track tag) {
+            <button
+              type="button"
+              class="chip"
+              [class.on]="selectedTags().includes(tag)"
+              (click)="toggleTag(tag)"
+              [attr.aria-pressed]="selectedTags().includes(tag)"
+            >
+              {{ tag }}
+            </button>
+          }
+        </div>
+      </div>
+    }
+  </div>
+}
+
+<p class="section-label">Nivel de experiencia</p>
+<div class="chip-row">
+  @for (d of difficulties; track d.value) {
+    <span class="chip" [class.on]="selectedDifficulty() === d.value" (click)="setDifficulty(d.value)">{{ d.label }}</span>
+  }
+</div>
+
+<div class="field">
+  <label for="country">País</label>
+  <select id="country" class="select" [value]="selectedCountry() ?? ''" (change)="setCountry($any($event.target).value)">
+    <option value="">Cualquier lugar</option>
+    @for (country of countries(); track country) {
+      <option [value]="country">{{ country }}</option>
+    }
+  </select>
+</div>
+
+<div class="field slider-field">
+  <label for="max-minutes">
+    Tiempo disponible: <strong>{{ anyTime() ? 'El que sea' : maxMinutes() + ' min' }}</strong>
+  </label>
+  <label class="switch-row any-time" for="any-time">
+    <input
+      id="any-time"
+      type="checkbox"
+      role="switch"
+      [checked]="anyTime()"
+      (change)="setAnyTime($any($event.target).checked)"
+    />
+    <span>Tiempo de preparación: el que sea</span>
+  </label>
+  <input
+    id="max-minutes"
+    class="slider"
+    type="range"
+    [disabled]="anyTime()"
+    [min]="minMinutes"
+    [max]="maxMinutesLimit"
+    [step]="minutesStep"
+    [value]="maxMinutes()"
+    (input)="setMinutes($any($event.target).value)"
+  />
+  <div class="slider-scale" aria-hidden="true"><span>{{ minMinutes }} min</span><span>{{ maxMinutesLimit }} min</span></div>
+</div>
+
+<button class="btn-primary" [disabled]="loading() || metadataLoading() || metadataError()" (click)="showIdeas()">Aplicar filtros</button>
+
+<p class="section-label" style="margin-top:32px;">Ideas para ti</p>
+<div class="results-grid">
+  @for (r of visibleSuggestions(); track r.id) {
+    <app-recipe-card
+      [recipe]="r"
+      (toggleFavorite)="onToggleFavorite($event)"
+      (toggleSaved)="onToggleSaved($event)"
+      (hide)="onHide($event)"
+    />
+  } @empty {
+    @if (loading()) {
+      <p class="page-sub">Buscando ideas…</p>
+    } @else if (error()) {
+      <p class="page-sub" role="alert">{{ error() }}</p>
+    } @else {
+      <p class="page-sub">No hay ideas nuevas con estos filtros todavía.</p>
+    }
+  }
+</div>

@@ -1,0 +1,92 @@
+.fab-chat {
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+
+  &:active {
+    cursor: grabbing;
+    transform: scale(1.06);
+  }
+}
+
+.chat-callout {
+  position: fixed;
+  bottom: 86px;
+  right: 24px;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--olive);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  padding: 12px 14px;
+  z-index: 29;
+  cursor: pointer;
+  animation: calloutFadeIn 0.25s ease-out;
+
+  &:hover {
+    border-color: var(--olive);
+  }
+}
+
+.callout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.callout-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--olive);
+}
+
+.callout-close {
+  background: none;
+  border: none;
+  font-size: 1.15rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+
+  &:hover {
+    color: var(--ink);
+    background: var(--line);
+  }
+}
+
+.callout-body {
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--ink);
+  margin: 0 0 6px 0;
+
+  strong {
+    color: var(--olive);
+  }
+}
+
+.callout-hint {
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+@keyframes calloutFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

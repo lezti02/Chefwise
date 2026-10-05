@@ -1,0 +1,25 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Frontend
+node_modules/
+dist/
+.angular/
+
+# Secretos
+.env
+
+# Copia local del modelo de embeddings (~470 MB): se vuelve a descargar de Hugging Face
+models/embedding_model/
+notebooks/figures/
+
+# Datos crudos (viven en Google Drive) y archivos de scraping
+data/raw/
+lista_recetas.txt
+
+# Sistema / Vercel
+.DS_Store
+.vercel

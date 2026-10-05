@@ -1,0 +1,11 @@
+# Backend + recomendador (lo que instala Vercel). Python 3.13.
+# scikit-learn debe ser compatible con el que guardó models/*.joblib (1.9.x).
+fastapi>=0.142,<1
+uvicorn>=0.54,<1
+pydantic>=2.13,<3
+pandas>=3.0,<4
+numpy>=2.4,<3
+scipy>=1.17,<2
+scikit-learn>=1.9,<2
+joblib>=1.5,<2
+httpx>=0.28,<1          # cliente HTTP del chat (Gemini)

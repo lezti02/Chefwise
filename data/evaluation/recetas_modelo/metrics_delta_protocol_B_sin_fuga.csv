@@ -1,0 +1,9 @@
+Métrica,TF-IDF,Embeddings,Δ abs (Emb − TF-IDF),IC95% bajo,IC95% alto,Veredicto
+Precision@5,0.217391,0.194203,-0.023188,-0.049275,0.003623,sin diferencia clara
+Precision@10,0.2,0.17029,-0.02971,-0.050725,-0.009058,TF-IDF mejor
+Recall@5,0.007219,0.00665,-0.000569,-0.001644,0.000577,sin diferencia clara
+Recall@10,0.012576,0.011322,-0.001254,-0.002824,0.000277,sin diferencia clara
+HitRate@5,0.554348,0.48913,-0.065217,-0.123188,-0.003623,TF-IDF mejor
+HitRate@10,0.663043,0.605072,-0.057971,-0.115942,0.0,sin diferencia clara
+NDCG@5,0.224016,0.205908,-0.018108,-0.04499,0.009108,sin diferencia clara
+NDCG@10,0.209777,0.184837,-0.02494,-0.046367,-0.003808,TF-IDF mejor

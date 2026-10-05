@@ -1,0 +1,105 @@
+<h1 class="page-title">Hola de nuevo</h1>
+<p class="page-sub">¿Cómo quieres decidir qué cocinar hoy?</p>
+
+<section class="ai-intro-card" aria-label="Introducción a la IA de ChefWise">
+  <div class="ai-intro-badge">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 2a4 4 0 0 1 4 4v1a2 2 0 0 1 2 2v6a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V9a2 2 0 0 1 2-2V6a4 4 0 0 1 4-4z" />
+      <circle cx="9" cy="12" r="1" fill="currentColor" />
+      <circle cx="15" cy="12" r="1" fill="currentColor" />
+      <path d="M10 16h4" />
+    </svg>
+    <span>Inteligencia Artificial Culinaria</span>
+  </div>
+  <div class="ai-intro-body">
+    <div class="ai-intro-text">
+      <h2>Descubre, cocina y resuelve dudas con IA</h2>
+      <p>
+        ChefWise combina modelos de lenguaje y similitud semántica para sugerirte recetas precisas según tus ingredientes, gustos y restricciones. Y si necesitas ayuda con sustituciones o tiempos, tu <strong>ayudante de chef virtual</strong> está siempre listo en el círculo flotante inferior.
+      </p>
+    </div>
+    <button type="button" class="btn-ai-chat" (click)="openAssistant()">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+      <span>Preguntar al Asistente IA</span>
+    </button>
+  </div>
+</section>
+
+<div class="search-wrap">
+  <form class="search-bar" (submit)="$event.preventDefault(); search()">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+    </svg>
+    <input
+      type="text"
+      placeholder="Buscar una receta, un ingrediente…"
+      [value]="searchTerm()"
+      (input)="searchTerm.set($any($event.target).value)"
+    />
+    <button type="submit" class="search-button" [disabled]="loading() || !searchTerm().trim()">Buscar</button>
+  </form>
+</div>
+
+<div class="grid-2">
+  <a class="action-card" routerLink="/sorprendeme">
+    <div class="tag">Descubrir</div>
+    <h3>Sorpréndeme</h3>
+    <p>Recetas nuevas ajustadas a tu gusto y a tu momento — no lo que ya conoces.</p>
+  </a>
+  <a class="action-card" routerLink="/con-lo-que-tengo">
+    <div class="tag">Aprovechar</div>
+    <h3>Con lo que tengo</h3>
+    <p>Dime qué hay en tu cocina y arma algo con eso, sin desperdiciar nada.</p>
+  </a>
+</div>
+
+@if (searchActive()) {
+  <div class="results-heading">
+    <p class="section-label">Resultados de búsqueda</p>
+    <button class="link-btn" (click)="clearSearch()">Cerrar búsqueda</button>
+  </div>
+  @if (total() > 0) {
+    <p class="results-count" aria-live="polite">
+      @if (total() === 1) {
+        1 coincidencia con «{{ committedQuery() }}»
+      } @else {
+        {{ total() }} coincidencias con «{{ committedQuery() }}»
+      }
+      @if (total() > searchResults().length) {
+        · mostrando {{ searchResults().length }}
+      }
+    </p>
+  }
+  <div class="recipe-row">
+    @for (r of searchResults(); track r.id) {
+      <app-recipe-row [recipe]="r" (toggleFavorite)="onToggleFavorite($event)" (toggleSaved)="onToggleSaved($event)" />
+    } @empty {
+      @if (loading()) {
+        <p class="page-sub" style="margin:16px 0 0;">Buscando en el catálogo…</p>
+      } @else if (searchError()) {
+        <p class="page-sub" role="alert" style="margin:16px 0 0;">{{ searchError() }}</p>
+      } @else {
+        <p class="page-sub" style="margin:16px 0 0;">No encontramos recetas con esa búsqueda.</p>
+      }
+    }
+  </div>
+  @if (searchResults().length && searchError()) {
+    <p class="page-sub" role="alert" style="margin:12px 0 0;">{{ searchError() }}</p>
+  }
+  @if (hasMore()) {
+    <button class="btn-secondary more-btn" type="button" [disabled]="loadingMore()" (click)="loadMore()">
+      {{ loadingMore() ? 'Buscando…' : 'Ver más recetas' }}
+    </button>
+  }
+} @else {
+  <p class="section-label">Cocinados recientemente</p>
+  <div class="recipe-row">
+    @for (r of recent(); track r.id) {
+      <app-recipe-row [recipe]="r" (toggleFavorite)="onToggleFavorite($event)" (toggleSaved)="onToggleSaved($event)" />
+    } @empty {
+      <p class="page-sub" style="margin:16px 0 0;">Aún no tienes historial.</p>
+    }
+  </div>
+}

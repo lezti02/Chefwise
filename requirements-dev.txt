@@ -1,0 +1,11 @@
+# Para regenerar los datos: notebooks y web scraping (no hace falta para desplegar).
+-r requirements.txt
+jupyter>=1.1
+matplotlib>=3.10,<4
+psutil>=7,<8
+# Notebooks 04 y 05 (embeddings); instala torch y transformers
+sentence-transformers>=6.1,<7
+# Scraping (src/web_scraping/); después: playwright install chromium
+requests>=2.32
+beautifulsoup4>=4.12
+playwright>=1.48
