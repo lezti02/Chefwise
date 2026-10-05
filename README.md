@@ -1,14 +1,37 @@
 # ChefWise
 
-Recomendador de recetas en español. Un backend FastAPI recomienda con **TF-IDF + similitud coseno** sobre ~28 800 recetas, un frontend Angular lo muestra y un asistente de cocina (Gemini) responde dudas sobre las recetas en pantalla.
+🌐 **Pruébalo en línea: https://chef-wise-three.vercel.app**
+
+ChefWise es una aplicación web que te ayuda a decidir qué cocinar. Tiene un catálogo de unas 28 800 recetas en español (México, España y otros países), te recomienda según lo que te apetece o lo que tienes en casa, respeta tus alergias y te acompaña mientras cocinas con un asistente de IA.
+
+## Qué hace
+
+| Sección | Qué puedes hacer |
+|---|---|
+| **Sorpréndeme** | Eliges lo que encaja con el momento: categorías (desayuno, postre, pollo, vegetariana, sopa…), nivel de experiencia (fácil, intermedio, reto), país y tiempo disponible. Te propone recetas que aún no has probado; con "Mostrar ideas nuevas" te da otras sin repetir. |
+| **Con lo que tengo** | Escribes los ingredientes que hay en tu cocina y te sugiere qué preparar, ordenado por cuántos de tus ingredientes usa cada receta. Puedes pedir primero las que necesitan menos ingredientes extra. |
+| **Buscador** | Busca por nombre de receta o ingrediente en todo el catálogo desde la página de inicio. |
+| **Receta** | Ingredientes, pasos de una sola instrucción y un aviso si lleva algo de lo que marcaste como alergia. Botón "Cociné esto" para llevar tu historial. |
+| **Mi cocina** | Resumen del mes, historial, favoritas, recetas guardadas para después y tus preferencias: alergias e ingredientes que quieres evitar (no se te recomendarán, o se te avisará en cada receta si decides verlas). |
+| **ChefWise, el asistente** | Un chat flotante (IA de Gemini) que responde sobre la receta que tienes abierta o las que ves en pantalla: sustituciones de ingredientes, conversión de unidades, escalar porciones, seguridad alimentaria, qué te falta de una receta según lo que tienes y búsqueda en el catálogo. No inventa recetas ni valores nutricionales. |
+
+Tus favoritas, historial y alergias se guardan en tu navegador (no hay cuentas ni base de datos).
+
+## Cómo funciona
 
 ```
 Angular (frontend/) ──HTTP──▶ FastAPI (backend/) ──▶ src/ (recomendador)
-                                                        ├─ data/processed/*.csv   recetas
-                                                        └─ models/recetas_modelo/ modelo TF-IDF ya entrenado
+                                   │                    ├─ data/processed/*.csv   recetas
+                                   │                    └─ models/recetas_modelo/ modelo TF-IDF ya entrenado
+                                   └──▶ Gemini (solo el chat)
 ```
 
-Todo lo necesario para ejecutar la app ya está en el repo (CSV procesados y modelo entrenado). Los **datos crudos no están**: viven en Google Drive y solo hacen falta si quieres regenerar los datos (ver [Regenerar los datos](#regenerar-los-datos)).
+1. **Datos.** Las recetas vienen de dos fuentes ([RecetasDeLaAbuela](https://huggingface.co/datasets/somosnlp/RecetasDeLaAbuela) y Kiwilimon, esta última obtenida con scraping). Los notebooks 01 y 02 las limpian (letras rotas, marcas comerciales, promoción, duplicados, pasos largos), les asignan etiquetas y calculan variables como los ingredientes base, el esfuerzo y el tiempo.
+2. **Modelo.** Cada receta se convierte en un texto (nombre + ingredientes + etiquetas + país) y se representa con **TF-IDF**: las palabras raras pesan más que las comunes (`chipotle` dice más de un plato que `sal`). Dos recetas, o una receta y lo que tú escribes, se parecen según su **similitud coseno**. El modelo se entrena una vez (notebook 03) y se guarda en `models/`.
+3. **Recomendar.** Primero se aplican los filtros duros (dificultad, tiempo, país, alergias, recetas ya mostradas). Después se ordena por similitud con tu consulta, con un pequeño peso extra para las recetas bien valoradas. Si los filtros dejan muy pocas recetas, se relajan y la respuesta lo indica. En "Con lo que tengo" la consulta son tus ingredientes.
+4. **Asistente.** El backend envía a Gemini tu pregunta junto con la receta abierta y herramientas propias (escalado, conversión de unidades, sustituciones, seguridad alimentaria, búsqueda). Los cálculos los hace el código, no el modelo, y la respuesta se sanea antes de mostrarla.
+
+Todo lo necesario para ejecutar la app ya está en el repo (CSV procesados y modelo entrenado). Los **datos crudos no están**: se descargan de Google Drive y solo hacen falta si quieres regenerar los datos (ver [Regenerar los datos](#regenerar-los-datos)).
 
 ## Estructura
 
