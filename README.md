@@ -129,12 +129,16 @@ El notebook 01 los descarga solos con `gdown` (sin iniciar sesión ni montar Dri
 
 Los notebooks 04-06 son experimentos: **la app no los usa** y siempre recomienda con el TF-IDF del 03.
 
-El notebook 01 es el único que lee datos crudos y funciona igual en Colab y en local: descarga los CSV a una carpeta temporal (nunca dentro del repo) y escribe el resultado:
+### Cómo ejecutarlos en Google Colab
 
-* **Colab:** el CSV limpio queda en `/content/chefWise_out/`: descárgalo y ponlo en `data/processed/` del repo.
-* **Local:** el CSV limpio se guarda directamente en `data/processed/`.
+Abre el notebook en Colab (*Archivo → Abrir cuaderno → GitHub* y pega la URL del repo) y ejecútalo de arriba abajo. Todos empiezan con una celda de preparación que, en Colab, clona el repo, instala las dependencias con las versiones del proyecto y entra en la carpeta del repo; en local no hace nada.
 
-Los notebooks 02 y 03 se ejecutan dentro del repo (importan `src/`). Tras regenerar el modelo, el backend comprueba al arrancar que los `.joblib` corresponden al CSV y, si no, explica el motivo.
+* **Cada notebook funciona por separado.** Colab abre cada uno en una máquina distinta, así que el 02 no ve la salida del 01 de otra sesión: parte del CSV que ya está en el repo (`recetas_limpias.csv`), y el 03 parte de `recetas_modelo.csv`.
+* **El 01 es el único que lee datos crudos.** Los descarga de Drive a una carpeta temporal (nunca dentro del repo) y escribe `data/processed/recetas_limpias.csv`.
+* **Para encadenar resultados nuevos** (por ejemplo, tras re-limpiar con el 01): descarga el CSV generado desde el panel de archivos de Colab, súbelo a `data/processed/` del repo (o a la sesión del siguiente notebook) y continúa con el 02 y el 03. Los archivos de una sesión de Colab se pierden al cerrarla, así que descarga lo que quieras conservar y haz commit.
+* **Local:** los mismos notebooks (`jupyter lab` desde la raíz del repo), sin la preparación.
+
+El modelo (`models/recetas_modelo/*.joblib`) debe generarse con las versiones de `requirements.txt` (scikit-learn 1.9.x); por eso la celda de preparación las instala en Colab. Tras regenerar el modelo, el backend comprueba al arrancar que los `.joblib` corresponden al CSV y, si no, explica el motivo.
 
 ## API
 
