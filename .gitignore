@@ -16,10 +16,11 @@ dist/
 models/embedding_model/
 notebooks/figures/
 
-# Datos crudos (viven en Google Drive) y archivos de scraping
-data/raw/
+# Archivos que genera el scraping
 lista_recetas.txt
+dataset_recetas.csv
 
 # Sistema / Vercel
 .DS_Store
 .vercel
+.env*

@@ -70,9 +70,9 @@ Sin clave, el chat responde `503` y el resto de la app funciona. Otras variables
 
 ## Desplegar en Vercel
 
-1. Sube este repo a GitHub e impórtalo en [vercel.com/new](https://vercel.com/new). No cambies nada: `vercel.json` ya define el build del frontend (`frontend/dist/chefwise/browser`) y la función Python `api/index.py`.
+1. Sube este repo a GitHub e impórtalo en [vercel.com/new](https://vercel.com/new). No cambies nada: `vercel.json` ya define ambos servicios.
 2. En *Settings → Environment Variables* añade `GEMINI_API_KEY` con tu clave (el `.env` local no se despliega). Sin ella todo funciona menos el chat. Si la añades después de desplegar, haz *Redeploy*.
-3. Despliega. El frontend y la API quedan en el mismo dominio (la API en `/api`), por eso no hace falta CORS.
+3. Despliega. `vercel.json` usa *Vercel Services*: el frontend Angular (`frontend/`) y el backend FastAPI (`api/index.py`) se despliegan juntos y comparten dominio (la API en `/api`), por eso no hace falta CORS.
 
 Con la CLI: `npm i -g vercel && vercel --prod`.
 
@@ -84,12 +84,14 @@ Solo si quieres rehacer los CSV y el modelo desde cero. Cadena completa:
 scraping ─▶ datos crudos (Drive) ─▶ notebook 01 ─▶ recetas_limpias.csv ─▶ notebook 02 ─▶ recetas_modelo.csv ─▶ notebook 03 ─▶ models/
 ```
 
-**Datos crudos.** Sube estos dos archivos a una carpeta de tu Google Drive (por defecto `Mi unidad/chefWise/raw/`):
+**Datos crudos.** No están en el repo: viven en Google Drive. Son estos dos archivos:
 
 | Archivo | Origen |
 |---|---|
 | `recetasdelaabuela.csv` | Dataset [somosnlp/RecetasDeLaAbuela](https://huggingface.co/datasets/somosnlp/RecetasDeLaAbuela) de Hugging Face. |
 | `recetas_kiwilimon.csv` | Salida del scraping: `python src/web_scraping/lista.py` crea `lista_recetas.txt` y `python src/web_scraping/recetas.py` crea `dataset_recetas.csv` (renómbralo). Necesita `pip install -r requirements-dev.txt` y `playwright install chromium`. |
+
+El notebook 01 los descarga solos con `gdown` (sin iniciar sesión ni montar Drive), así que funciona desde cualquier cuenta de Colab. Los enlaces están en `DRIVE_FILE_IDS`, en la primera celda del notebook; si subes otra versión de los archivos, pega ahí su nuevo ID (la parte central de `https://drive.google.com/file/d/<ID>/view`).
 
 **Notebooks** (`pip install -r requirements-dev.txt` y `jupyter lab`):
 
@@ -104,10 +106,10 @@ scraping ─▶ datos crudos (Drive) ─▶ notebook 01 ─▶ recetas_limpias.c
 
 Los notebooks 04-06 son experimentos: **la app no los usa** y siempre recomienda con el TF-IDF del 03.
 
-El notebook 01 es el único que lee datos crudos y los busca así:
+El notebook 01 es el único que lee datos crudos y funciona igual en Colab y en local: descarga los CSV a una carpeta temporal (nunca dentro del repo) y escribe el resultado:
 
-* **Google Colab:** monta tu Drive y lee de `MyDrive/chefWise/raw` (cambia `DRIVE_RAW_FOLDER` en la primera celda si usaste otra carpeta). El CSV limpio se guarda en `/content/chefWise_out/`: descárgalo y ponlo en `data/processed/` del repo.
-* **Local:** lee de `data/raw/` (ignorada por git) o de la carpeta indicada en la variable de entorno `CHEFWISE_RAW_DIR` (por ejemplo, la de Google Drive para escritorio).
+* **Colab:** el CSV limpio queda en `/content/chefWise_out/`: descárgalo y ponlo en `data/processed/` del repo.
+* **Local:** el CSV limpio se guarda directamente en `data/processed/`.
 
 Los notebooks 02 y 03 se ejecutan dentro del repo (importan `src/`). Tras regenerar el modelo, el backend comprueba al arrancar que los `.joblib` corresponden al CSV y, si no, explica el motivo.
 
@@ -116,7 +118,7 @@ Los notebooks 02 y 03 se ejecutan dentro del repo (importan `src/`). Tras regene
 | Método y ruta | Descripción |
 |---|---|
 | `GET /health` | `{"status": "ok"}` |
-| `POST /recommendations` | "Sorpréndeme": top-N según antojos, dificultad, tiempo y país. |
+| `POST /recommendations` | "Sorpréndeme": top-N según etiquetas, dificultad, tiempo y país. |
 | `POST /recommendations/by-ingredients` | "Con lo que tengo": similitud con los ingredientes escritos. |
 | `GET /recipes/{recipe_id}` | Receta completa (404 si no existe). |
 | `POST /chat` | Asistente ChefWise sobre las recetas en pantalla (503 sin clave de Gemini). |
@@ -124,12 +126,12 @@ Los notebooks 02 y 03 se ejecutan dentro del repo (importan `src/`). Tras regene
 Ejemplo de `POST /recommendations`:
 
 ```json
-{"antojos": ["rapido"], "difficulty": "facil", "max_time": 30, "countries": [], "exclude_ids": [], "top_n": 12}
+{"tags": ["Pollo"], "difficulty": "facil", "max_time": 30, "countries": [], "exclude_ids": [], "top_n": 12}
 ```
 
-* `antojos`: `rapido | saludable | reconfortante | dulce | picante | ligero` (se traducen a filtros y palabras de búsqueda en `src/preferences.py`).
+* `tags`: etiquetas exactas del dataset (`Desayuno`, `Comida`, `Cena`, `Postre`, `Bebida`, `Alcohol`, `Vegetariana`, `Vegana`, `Cerdo`, `Pollo`, `Mariscos`, `Res`, `Pavo`, `Cordero`, `Pasta`, `Sopa`). Si no hay suficientes recetas con todas, el backend relaja el filtro.
 * `difficulty`: `facil | intermedio | reto`. `max_time`: minutos. `countries`: vacío = cualquiera. `exclude_ids`: recetas que no deben salir.
-* El ranking es `similitud coseno + 0.05 × calidad` (rating bayesiano).
+* El ranking es similitud coseno (TF-IDF) con un pequeño peso de calidad (rating bayesiano).
 
 Con la API en marcha, `http://localhost:8000/docs` documenta todos los campos.
 

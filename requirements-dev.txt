@@ -1,6 +1,7 @@
 # Para regenerar los datos: notebooks y web scraping (no hace falta para desplegar).
 -r requirements.txt
 jupyter>=1.1
+gdown>=5.2                 # descarga de los CSV crudos desde Drive (notebook 01)
 matplotlib>=3.10,<4
 psutil>=7,<8
 # Notebooks 04 y 05 (embeddings); instala torch y transformers

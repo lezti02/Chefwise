@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from backend.main import _build_assistant, app as backend_app  # noqa: E402
 from src.recommender import Recommender  # noqa: E402
 
-_PREFIX = "/api"
+_PREFIXES = ("/api/index", "/api")      # Vercel puede entregar la ruta original o la reescrita
 
 
 def _ensure_state() -> None:
@@ -24,6 +24,8 @@ async def app(scope, receive, send):
     if scope["type"] == "http":
         _ensure_state()
         path = scope["path"]
-        if path.startswith(_PREFIX):
-            scope = {**scope, "path": path[len(_PREFIX):] or "/"}
+        for prefix in _PREFIXES:
+            if path == prefix or path.startswith(prefix + "/"):
+                scope = {**scope, "path": path[len(prefix):] or "/"}
+                break
     await backend_app(scope, receive, send)
