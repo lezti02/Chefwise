@@ -1,6 +1,11 @@
 <a class="back-link" routerLink="/">← Inicio</a>
 <h1 class="page-title">Con lo que tengo</h1>
 <p class="page-sub">Agrega lo que hay en tu cocina, poco o mucho, y te sugerimos qué preparar.</p>
+@if (recipeService.hasTasteProfile()) {
+  <p class="prefs-note">
+    Entre recetas que usen lo que tienes, priorizamos el estilo de lo que ya has marcado o cocinado.
+  </p>
+}
 
 @if (recipeService.activeAllergyLabels().length) {
   <p class="prefs-note">
