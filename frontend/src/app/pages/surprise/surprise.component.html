@@ -1,6 +1,11 @@
 <a class="back-link" routerLink="/">← Inicio</a>
 <h1 class="page-title">Sorpréndeme</h1>
 <p class="page-sub">Elige lo que se ajuste a este momento. Buscamos algo que aún no has probado.</p>
+@if (recipeService.hasTasteProfile()) {
+  <p class="prefs-note">
+    Las ideas se ordenan también según lo que has visto, guardado, marcado como favorito o cocinado.
+  </p>
+}
 
 @if (recipeService.activeAllergyLabels().length) {
   <p class="prefs-note">

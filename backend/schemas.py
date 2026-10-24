@@ -27,6 +27,10 @@ class RecommendationRequest(BaseModel):
     max_time: int | None = Field(None, ge=1, le=720, description="Minutos disponibles.")
     countries: list[str] = Field(default_factory=list, max_length=40, description="Vacío = cualquier país.")
     exclude_ids: list[int] = Field(default_factory=list, max_length=5000, description="recipe_id a omitir.")
+    favorite_ids: list[int] = Field(default_factory=list, max_length=100, description="Favoritas (señal positiva).")
+    saved_ids: list[int] = Field(default_factory=list, max_length=100, description="Guardadas para después.")
+    cooked_ids: list[int] = Field(default_factory=list, max_length=100, description="Ya cocinadas (gusto, no se vuelven a sugerir).")
+    viewed_ids: list[int] = Field(default_factory=list, max_length=40, description="Recetas abiertas recientemente.")
     top_n: int = Field(5, ge=1, le=50)
 
 
@@ -37,6 +41,10 @@ class IngredientsRequest(BaseModel):
 
     ingredients: list[str] = Field(min_length=1, max_length=50)
     exclude_ids: list[int] = Field(default_factory=list, max_length=5000)
+    favorite_ids: list[int] = Field(default_factory=list, max_length=100)
+    saved_ids: list[int] = Field(default_factory=list, max_length=100)
+    cooked_ids: list[int] = Field(default_factory=list, max_length=100)
+    viewed_ids: list[int] = Field(default_factory=list, max_length=40)
     top_n: int = Field(5, ge=1, le=50)
     offset: int = Field(0, ge=0, le=1000, description="Cuántos resultados saltar (para 'buscar más').")
     fewest_extras: bool = Field(False, description="Ordena primero por menos ingredientes extra.")
@@ -75,6 +83,7 @@ class RecommendationMeta(BaseModel):
     has_more: bool = Field(False, description="Hay más resultados después de esta página.")
     ingredients_total: int | None = Field(None, description="Ingredientes distintos que escribió el usuario.")
     best_match_count: int | None = Field(None, description="Máximo de esos ingredientes que usa una receta.")
+    personalized: bool = Field(False, description="El ranking usó las recetas con las que el usuario ya interactuó.")
 
 
 class RecommendationResponse(BaseModel):

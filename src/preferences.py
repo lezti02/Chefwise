@@ -18,6 +18,10 @@ class UserPreferences:
     max_time: int | None = None  # minutos
     countries: tuple[str, ...] = ()  # vacío = cualquier país
     exclude_ids: tuple[int, ...] = field(default_factory=tuple)
+    favorite_ids: tuple[int, ...] = field(default_factory=tuple)
+    saved_ids: tuple[int, ...] = field(default_factory=tuple)
+    cooked_ids: tuple[int, ...] = field(default_factory=tuple)
+    viewed_ids: tuple[int, ...] = field(default_factory=tuple)
     top_n: int = DEFAULT_TOP_N
 
     def __post_init__(self) -> None:

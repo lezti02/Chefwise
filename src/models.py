@@ -38,7 +38,7 @@ def load_artifacts(models_dir: Path | str = MODELS_DIR) -> TfidfArtifacts:
         if not path.is_file():
             raise ArtifactNotFoundError(
                 f"Falta el artefacto del modelo: {path}. "
-                "Ejecuta el notebook 03_recomendador_tf_idf.ipynb "
+                "Ejecuta el notebook 03_recomendador_tf_idf.ipynb (sección 1.10) "
                 "o define CHEFWISE_MODELS_DIR."
             )
 

@@ -1,6 +1,12 @@
 """Servicio de recomendación Content-Based (similitud coseno).
 
-Los filtros son duros. El ranking es siempre TF-IDF + similitud coseno.
+Los filtros son duros. El ranking depende de la pantalla:
+- "Con lo que tengo" y la búsqueda usan SIEMPRE TF-IDF (coincidencia literal de ingredientes);
+- "Sorpréndeme" usa embeddings (similitud semántica) si están disponibles y, si no
+  (p. ej. en producción, sin torch), cae a TF-IDF.
+
+Si el frontend manda recetas favoritas, guardadas, cocinadas o vistas, el ranking
+mezcla esa similitud de consulta con un perfil (centroide ponderado) del usuario.
 
 Se instancia UNA vez al arrancar el backend: el CSV y los artefactos de
 `models/` se cargan en memoria y se reutilizan en cada petición.
@@ -9,6 +15,7 @@ Se instancia UNA vez al arrancar el backend: el CSV y los artefactos de
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -17,10 +24,12 @@ import numpy as np
 
 from .config import DEFAULT_TOP_N, DISPLAY_DATASET_PATH, MODEL_DATASET_PATH, MODELS_DIR
 from .data_loader import RecipeStore, load_recipes
+from .embeddings import EmbeddingArtifacts, load_embedding_artifacts
 from .filters import exact_tags_mask, structural_mask, tag_match_counts
 from .ingredient_match import IngredientUsage, query_terms, usage
 from .models import TfidfArtifacts, load_artifacts, validate_alignment
 from .preferences import UserPreferences
+from .profile import InteractionSignals, blend_alpha, blend_scores, centroid_similarities
 from .ranking import rank_candidates
 from .text_utils import split_ingredients
 
@@ -49,6 +58,7 @@ class RecommendationResult:
     has_more: bool = False  # hay más resultados después de esta página
     ingredients_total: int | None = None  # ingredientes distintos que escribió el usuario
     best_match_count: int | None = None  # lo máximo que una receta usa de ellos
+    personalized: bool = False  # el ranking usó recetas con las que el usuario ya interactuó
 
 
 class Recommender:
@@ -57,12 +67,16 @@ class Recommender:
         store: RecipeStore,
         artifacts: TfidfArtifacts,
         *,
+        embeddings: EmbeddingArtifacts | None = None,
         validate: bool = True,
     ) -> None:
         if validate:
             validate_alignment(artifacts, store.df["recipe_text"].fillna("").astype(str).tolist())
+        if embeddings is not None and embeddings.matrix.shape[0] != len(store):
+            raise ValueError(f"Hay {embeddings.matrix.shape[0]} embeddings pero {len(store)} recetas.")
         self.store = store
         self.artifacts = artifacts
+        self.embeddings = embeddings
 
     @classmethod
     def from_disk(
@@ -70,11 +84,22 @@ class Recommender:
         display_dataset_path: Path | str = DISPLAY_DATASET_PATH,
         model_dataset_path: Path | str = MODEL_DATASET_PATH,
         models_dir: Path | str = MODELS_DIR,
+        *,
+        use_embeddings: bool | None = None,
     ) -> "Recommender":
+        """`use_embeddings=None` lo decide CHEFWISE_USE_EMBEDDINGS (por defecto, sí si se pueden cargar)."""
         store = load_recipes(display_dataset_path, model_dataset_path)
         artifacts = load_artifacts(models_dir)
-        logger.info("Recomendador listo: %d recetas, %d términos TF-IDF", len(store), artifacts.matrix.shape[1])
-        return cls(store, artifacts)
+        if use_embeddings is None:
+            use_embeddings = os.getenv("CHEFWISE_USE_EMBEDDINGS", "1").lower() not in ("0", "false", "no")
+        embeddings = _try_load_embeddings(models_dir, store) if use_embeddings else None
+        logger.info(
+            "Recomendador listo: %d recetas, %d términos TF-IDF, Sorpréndeme con %s",
+            len(store),
+            artifacts.matrix.shape[1],
+            "embeddings" if embeddings else "TF-IDF",
+        )
+        return cls(store, artifacts, embeddings=embeddings)
 
     # ------------------------------------------------------------------ recetas
 
@@ -98,7 +123,13 @@ class Recommender:
             exclude_positions=self.store.positions_of(list(prefs.exclude_ids)),
         )
         query_text = self._preference_query(prefs)
-        similarity = self.artifacts.similarities(query_text)
+        similarity = (self.embeddings or self.artifacts).similarities(query_text)
+        profile_sim = self._profile_similarities(prefs)
+        ranking = blend_scores(
+            similarity,
+            profile_sim,
+            blend_alpha(generic_query=query_text == "receta") if profile_sim is not None else 0.0,
+        )
 
         if not prefs.tags:
             return self._build_result(
@@ -108,6 +139,8 @@ class Recommender:
                 query_text=query_text,
                 max_minutes=prefs.max_time,
                 relaxed=[],
+                ranking=ranking,
+                personalized=profile_sim is not None,
             )
 
         tag_counts = tag_match_counts(self.store, prefs.tags)
@@ -147,6 +180,8 @@ class Recommender:
             max_minutes=prefs.max_time,
             relaxed=relaxed,
             tag_counts=counts_to_rank,
+            ranking=ranking,
+            personalized=profile_sim is not None,
         )
 
     def recommend_by_ingredients(
@@ -158,6 +193,10 @@ class Recommender:
         offset: int = 0,
         fewest_extras: bool = False,
         max_minutes: int | None = None,
+        favorite_ids: tuple[int, ...] = (),
+        saved_ids: tuple[int, ...] = (),
+        cooked_ids: tuple[int, ...] = (),
+        viewed_ids: tuple[int, ...] = (),
     ) -> RecommendationResult:
         """"Con lo que tengo": similitud TF-IDF entre los ingredientes escritos y cada receta.
 
@@ -186,6 +225,17 @@ class Recommender:
         # Se reordena solo el grupo de recetas más parecidas: calcular los extras
         # de todo el catálogo no hace falta y las menos parecidas no se mostrarían.
         positions, scores = rank_candidates(mask, INGREDIENT_POOL, similarity)
+        profile_sim = self._profile_similarities(
+            UserPreferences(
+                favorite_ids=favorite_ids,
+                saved_ids=saved_ids,
+                cooked_ids=cooked_ids,
+                viewed_ids=viewed_ids,
+            ),
+            space=self.artifacts,
+        )
+        if profile_sim is not None:
+            scores = blend_scores(scores, profile_sim[positions], blend_alpha(for_ingredients=True))
         ingredients_column = self.store.df["ingredients"]
         entries = [
             (int(pos), float(score), usage(terms, split_ingredients(ingredients_column.iat[int(pos)])))
@@ -195,6 +245,8 @@ class Recommender:
         if fewest_extras:
             entries = [e for e in entries if e[2].matched]
             entries.sort(key=lambda e: (-len(e[2].matched), e[2].extras, -e[1], e[0]))
+        elif profile_sim is not None:
+            entries.sort(key=lambda e: (-e[1], e[0]))
 
         page = entries[offset : offset + top_n]
         items = [
@@ -214,6 +266,7 @@ class Recommender:
             has_more=offset + top_n < len(entries),
             ingredients_total=len(terms),
             best_match_count=best_match_count,
+            personalized=profile_sim is not None,
         )
 
     def search(
@@ -251,6 +304,25 @@ class Recommender:
         terms.extend(prefs.countries)
         return " ".join(terms) or "receta"
 
+    def _profile_similarities(self, prefs: UserPreferences, *, space: Any | None = None) -> np.ndarray | None:
+        """Similitud de cada receta al centroide de lo que el usuario ya marcó o cocinó."""
+        signals = InteractionSignals(
+            favorite_ids=prefs.favorite_ids,
+            saved_ids=prefs.saved_ids,
+            cooked_ids=prefs.cooked_ids,
+            viewed_ids=prefs.viewed_ids,
+        )
+        weights_by_id = signals.weighted_ids()
+        positions: list[int] = []
+        weights: list[float] = []
+        for recipe_id, weight in weights_by_id.items():
+            pos = self.store.id_to_pos.get(recipe_id)
+            if pos is not None:
+                positions.append(pos)
+                weights.append(weight)
+        matrix = (space or self.embeddings or self.artifacts).matrix
+        return centroid_similarities(matrix, positions, weights)
+
     def _build_result(
         self,
         candidate_mask: np.ndarray,
@@ -262,9 +334,13 @@ class Recommender:
         relaxed: list[str],
         offset: int = 0,
         tag_counts: np.ndarray | None = None,
+        ranking: np.ndarray | None = None,
+        personalized: bool = False,
     ) -> RecommendationResult:
         total = int(candidate_mask.sum())
-        positions, scores = rank_candidates(candidate_mask, offset + top_n, similarity, tag_counts=tag_counts)
+        positions, scores = rank_candidates(
+            candidate_mask, offset + top_n, ranking if ranking is not None else similarity, tag_counts=tag_counts
+        )
         positions, scores = positions[offset:], scores[offset:]
         items = [
             ScoredRecipe(
@@ -281,5 +357,19 @@ class Recommender:
             max_minutes=max_minutes,
             relaxed=relaxed,
             has_more=offset + top_n < total,
+            personalized=personalized,
         )
 
+
+def _try_load_embeddings(models_dir: Path | str, store: RecipeStore) -> EmbeddingArtifacts | None:
+    """Embeddings si el entorno puede usarlos; si no, None y "Sorpréndeme" sigue con TF-IDF.
+
+    Pueden faltar el archivo (no se sube a producción), `sentence-transformers`/torch, o no
+    corresponder al CSV actual: ninguno de esos casos debe impedir que arranque el backend.
+    """
+    try:
+        texts = store.df["recipe_text"].fillna("").astype(str).tolist()
+        return load_embedding_artifacts(models_dir, texts=texts)
+    except Exception as exc:  # noqa: BLE001 - cualquier fallo aquí es degradable
+        logger.warning("Sin embeddings para Sorpréndeme (%s: %s); se usa TF-IDF.", type(exc).__name__, exc)
+        return None

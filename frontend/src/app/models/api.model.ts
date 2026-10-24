@@ -5,7 +5,14 @@
 
 import { Difficulty, MealCategory } from './recipe.model';
 
-export interface RecommendationRequestDto {
+export interface InteractionSignalsDto {
+  favorite_ids?: number[];
+  saved_ids?: number[];
+  cooked_ids?: number[];
+  viewed_ids?: number[];
+}
+
+export interface RecommendationRequestDto extends InteractionSignalsDto {
   tags: string[];
   difficulty: Difficulty | null;
   max_time: number | null;
@@ -14,7 +21,7 @@ export interface RecommendationRequestDto {
   top_n: number;
 }
 
-export interface IngredientsRequestDto {
+export interface IngredientsRequestDto extends InteractionSignalsDto {
   ingredients: string[];
   exclude_ids: number[];
   top_n: number;
@@ -57,6 +64,7 @@ export interface RecommendationResponseDto {
     has_more?: boolean;
     ingredients_total?: number | null;
     best_match_count?: number | null;
+    personalized?: boolean;
   };
 }
 

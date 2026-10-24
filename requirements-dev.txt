@@ -1,11 +1,20 @@
-# Para regenerar los datos: notebooks y web scraping (no hace falta para desplegar).
+# Entorno de desarrollo completo: tests, notebooks, modelo 2 (embeddings) y scraping.
+# No hace falta para desplegar (Vercel solo instala requirements.txt).
 -r requirements.txt
+
+# Tests
+pytest>=9,<10
+
+# Notebooks (01-06)
 jupyter>=1.1
-gdown>=5.2                 # descarga de los CSV crudos desde Drive (notebook 01)
+ipykernel>=7,<8
+nbconvert>=7.17,<8
 matplotlib>=3.10,<4
 psutil>=7,<8
-# Notebooks 04 y 05 (embeddings); instala torch y transformers
+
+# Modelo 2 (notebooks 04-05 y src/embeddings.py); instala torch y transformers
 sentence-transformers>=6.1,<7
+
 # Scraping (src/web_scraping/); después: playwright install chromium
 requests>=2.32
 beautifulsoup4>=4.12

@@ -1,0 +1,11 @@
+.venv
+frontend/node_modules
+frontend/dist
+.scratch*
+.pytest_cache
+.ruff_cache
+notebooks
+tests
+data/raw
+models/recetas_modelo/recipe_embeddings.npy
+.env

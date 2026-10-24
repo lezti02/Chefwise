@@ -55,6 +55,7 @@ def _to_response(result: RecommendationResult) -> RecommendationResponse:
             has_more=result.has_more,
             ingredients_total=result.ingredients_total,
             best_match_count=result.best_match_count,
+            personalized=result.personalized,
         ),
     )
 
@@ -72,6 +73,10 @@ def recommendations(body: RecommendationRequest, recommender: RecommenderDep) ->
         max_time=body.max_time,
         countries=tuple(body.countries),
         exclude_ids=tuple(body.exclude_ids),
+        favorite_ids=tuple(body.favorite_ids),
+        saved_ids=tuple(body.saved_ids),
+        cooked_ids=tuple(body.cooked_ids),
+        viewed_ids=tuple(body.viewed_ids),
         top_n=body.top_n,
     )
     try:
@@ -89,6 +94,10 @@ def recommendations_by_ingredients(body: IngredientsRequest, recommender: Recomm
             top_n=body.top_n,
             offset=body.offset,
             fewest_extras=body.fewest_extras,
+            favorite_ids=tuple(body.favorite_ids),
+            saved_ids=tuple(body.saved_ids),
+            cooked_ids=tuple(body.cooked_ids),
+            viewed_ids=tuple(body.viewed_ids),
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

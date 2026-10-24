@@ -1,168 +1,144 @@
-# ChefWise
+# ChefWise: a recipe recommender with an AI cooking assistant
 
-🌐 **Pruébalo en línea: https://chef-wise-three.vercel.app**
+**English** | [Español](README.es.md)
 
-ChefWise es una aplicación web que te ayuda a decidir qué cocinar. Tiene un catálogo de unas 28 800 recetas en español (México, España y otros países), te recomienda según lo que te apetece o lo que tienes en casa, respeta tus alergias y te acompaña mientras cocinas con un asistente de IA.
+[![CI](https://github.com/lezti02/Chefwise/actions/workflows/ci.yml/badge.svg)](https://github.com/lezti02/Chefwise/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![Angular](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.9-F7931E?logo=scikitlearn&logoColor=white)
 
-## Qué hace
+🌐 **Live demo:** https://chef-wise-three.vercel.app (the app is in Spanish)
+📄 **Written report (Spanish):** [`docs/chefwise_documentacion.pdf`](docs/chefwise_documentacion.pdf) · **Slides:** [`docs/chefwise_presentacion.pdf`](docs/chefwise_presentacion.pdf)
 
-| Sección | Qué puedes hacer |
+ChefWise answers the everyday question *"what should I cook today?"*. It recommends recipes from a catalogue of
+**28,798 Spanish-language recipes** (Mexico, Spain and other countries) based on what you feel like eating or
+what you already have at home, warns you about your allergies, learns from the recipes you open, save and cook,
+and includes an AI assistant that helps while you cook.
+
+Final project of the Data Science Diploma (cohort 34), built end to end: web scraping, data cleaning, EDA,
+feature engineering, two recommendation models with an offline evaluation, a REST API and a web app.
+
+![ChefWise home page](docs/images/home.png)
+
+## Highlights
+
+- **Data collection and cleaning:** scraped ~9,000 recipes from Kiwilimon (Playwright + BeautifulSoup) and merged
+  them with the RecetasDeLaAbuela dataset from Hugging Face. Fixed broken encodings, malformed rows, duplicates,
+  mislabelled columns and brand names, and normalised times, ratings and difficulty levels.
+- **Content-based recommender:** TF-IDF over name, ingredients, tags and country, ranked by cosine similarity plus
+  a small Bayesian-rating quality weight. Hard filters (difficulty, time, country, allergies) are always respected
+  and relaxed only when too few recipes are left.
+- **Model comparison:** a sentence-transformers embedding model against the TF-IDF baseline on a frozen
+  evaluation set of 320 queries, with Precision, Recall, Hit Rate and NDCG@K and paired bootstrap confidence intervals.
+- **Personalisation:** a weighted taste profile (centroid of favourite, cooked, saved and viewed recipes) blended
+  with the query similarity.
+- **AI assistant with tools:** Gemini function calling with typed tools for scaling portions, converting units,
+  ingredient substitutions, food safety (USDA FSIS) and catalogue search. Calculations are done by code, not by
+  the LLM, and replies are sanitised before they reach the user.
+- **Engineering:** FastAPI backend with Pydantic contracts, Angular frontend, 136 backend tests (pytest),
+  40 frontend tests (Vitest), GitHub Actions CI and serverless deployment on Vercel.
+
+## Results
+
+**Which model recommends better?** Both models were scored on the same 320 queries (10 for each of 32 dish
+types). A recommendation counts as relevant when it is the same type of dish.
+
+| Test | Metric | TF-IDF | Embeddings | 95% CI of the difference | Verdict |
+|---|---|---|---|---|---|
+| A: "I liked this recipe, show me similar ones" | Precision@10 | 0.475 | **0.552** | [+0.048, +0.106] | Embeddings better |
+| | NDCG@10 | 0.492 | **0.576** | [+0.056, +0.113] | Embeddings better |
+| | HitRate@5 | 0.850 | **0.919** | [+0.025, +0.116] | Embeddings better |
+| B: "I have these ingredients, what can I cook?" | NDCG@10 | **0.241** | 0.237 | [−0.026, +0.017] | No clear difference |
+| | HitRate@5 | **0.581** | 0.531 | [−0.106, +0.006] | No clear difference |
+
+A random recommender scores HitRate@5 = 0.05, so both models are far above chance.
+
+**Decision.** Embeddings win when the query is a whole recipe, while TF-IDF matches literal ingredients just as
+well, is 7× smaller (6 MB vs 44 MB plus a 488 MB model) and needs no deep-learning runtime. The app therefore
+uses **TF-IDF for "With what I have" and search**, and **embeddings for "Surprise me" when they are available**,
+falling back to TF-IDF in the serverless deployment. Details in
+[`notebooks/05_comparacion_baseline_vs_embeddings.ipynb`](notebooks/05_comparacion_baseline_vs_embeddings.ipynb).
+
+## The app
+
+| Section | What it does |
 |---|---|
-| **Sorpréndeme** | Eliges lo que encaja con el momento: categorías (desayuno, postre, pollo, vegetariana, sopa…), nivel de experiencia (fácil, intermedio, reto), país y tiempo disponible. Te propone recetas que aún no has probado; con "Mostrar ideas nuevas" te da otras sin repetir. |
-| **Con lo que tengo** | Escribes los ingredientes que hay en tu cocina y te sugiere qué preparar, ordenado por cuántos de tus ingredientes usa cada receta. Puedes pedir primero las que necesitan menos ingredientes extra. |
-| **Buscador** | Busca por nombre de receta o ingrediente en todo el catálogo desde la página de inicio. |
-| **Receta** | Ingredientes, pasos de una sola instrucción y un aviso si lleva algo de lo que marcaste como alergia. Botón "Cociné esto" para llevar tu historial. |
-| **Mi cocina** | Resumen del mes, historial, favoritas, recetas guardadas para después y tus preferencias: alergias e ingredientes que quieres evitar (no se te recomendarán, o se te avisará en cada receta si decides verlas). |
-| **ChefWise, el asistente** | Un chat flotante (IA de Gemini) que responde sobre la receta que tienes abierta o las que ves en pantalla: sustituciones de ingredientes, conversión de unidades, escalar porciones, seguridad alimentaria, qué te falta de una receta según lo que tienes y búsqueda en el catálogo. No inventa recetas ni valores nutricionales. |
+| **Sorpréndeme** (Surprise me) | Pick categories, difficulty, country and available time; get recipes you have not tried yet. |
+| **Con lo que tengo** (With what I have) | Type the ingredients in your kitchen; recipes are ranked by how many of them they use, optionally with the fewest extra ingredients first. |
+| **Search** | Search the whole catalogue by recipe name or ingredient. |
+| **Recipe** | Ingredients, one-instruction steps, an allergy warning and a "I cooked this" button. |
+| **Mi cocina** (My kitchen) | Monthly summary, history, favourites, saved recipes, allergies and ingredients to avoid. |
+| **Assistant** | Floating chat that answers questions about the recipe on screen. It never invents recipes or nutrition values. |
 
-Tus favoritas, historial y alergias se guardan en tu navegador (no hay cuentas ni base de datos).
+![With what I have](docs/images/with_what_i_have.png)
 
-## Cómo funciona
+![Recipe detail](docs/images/recipe.png)
+
+## Architecture
 
 ```
-Angular (frontend/) ──HTTP──▶ FastAPI (backend/) ──▶ src/ (recomendador)
-                                   │                    ├─ data/processed/*.csv   recetas
-                                   │                    └─ models/recetas_modelo/ modelo TF-IDF ya entrenado
-                                   └──▶ Gemini (solo el chat)
+Angular (frontend/) ──HTTP──▶ FastAPI (backend/) ──▶ src/ (recommender)
+                                   │                    ├─ data/processed/*.csv    recipes
+                                   │                    └─ models/recetas_modelo/  trained TF-IDF and embeddings
+                                   └──▶ Gemini (assistant only, with tools in backend/assistant/)
 ```
 
-1. **Datos.** Las recetas vienen de dos fuentes ([RecetasDeLaAbuela](https://huggingface.co/datasets/somosnlp/RecetasDeLaAbuela) y Kiwilimon, esta última obtenida con scraping). Los notebooks 01 y 02 las limpian (letras rotas, marcas comerciales, promoción, duplicados, pasos largos), les asignan etiquetas y calculan variables como los ingredientes base, el esfuerzo y el tiempo.
-2. **Modelo.** Cada receta se convierte en un texto (nombre + ingredientes + etiquetas + país) y se representa con **TF-IDF**: las palabras raras pesan más que las comunes (`chipotle` dice más de un plato que `sal`). Dos recetas, o una receta y lo que tú escribes, se parecen según su **similitud coseno**. El modelo se entrena una vez (notebook 03) y se guarda en `models/`.
-3. **Recomendar.** Primero se aplican los filtros duros (dificultad, tiempo, país, alergias, recetas ya mostradas). Después se ordena por similitud con tu consulta, con un pequeño peso extra para las recetas bien valoradas. Si los filtros dejan muy pocas recetas, se relajan y la respuesta lo indica. En "Con lo que tengo" la consulta son tus ingredientes.
-4. **Asistente.** El backend envía a Gemini tu pregunta junto con la receta abierta y herramientas propias (escalado, conversión de unidades, sustituciones, seguridad alimentaria, búsqueda). Los cálculos los hace el código, no el modelo, y la respuesta se sanea antes de mostrarla.
+User data (favourites, history, allergies) lives in the browser's `localStorage`; there are no accounts or database.
 
-Todo lo necesario para ejecutar la app ya está en el repo (CSV procesados y modelo entrenado). Los **datos crudos no están**: se descargan de Google Drive y solo hacen falta si quieres regenerar los datos (ver [Regenerar los datos](#regenerar-los-datos)).
+## Repository structure
 
-## Estructura
-
-| Ruta | Contenido |
+| Path | Contents |
 |---|---|
-| `frontend/` | App Angular. |
-| `backend/` | API FastAPI (`main.py`, `routes.py`, `schemas.py`, `settings.py`) y el asistente ChefWise (`assistant/`). |
-| `api/index.py` | Entrada serverless de Vercel (envuelve `backend/` bajo `/api`). |
-| `src/` | Lógica del recomendador (filtros, ranking, carga de datos y modelo). `embeddings.py` y `evaluation.py` solo los usan los notebooks 04-05. |
-| `src/web_scraping/` | Scraping de Kiwilimon: `lista.py` (URLs desde el sitemap) y `recetas.py` (descarga cada receta). |
-| `data/processed/` | `recetas_limpias.csv` (lo que se muestra) y `recetas_modelo.csv` (columnas del modelo). |
-| `models/recetas_modelo/` | `tfidf_vectorizer.joblib` y `recipe_tfidf_matrix.joblib` (los usa la app). `recipe_embeddings.npy` y `embedding_metadata.json` son solo del experimento 04-05. |
-| `data/evaluation/` | Conjunto de evaluación congelado (`eval_set.json`) y resultados de la comparación TF-IDF vs embeddings. |
-| `notebooks/` | 6 notebooks: generan los datos y el modelo (01-03) y experimentos (04-06). Ver abajo. |
-| `vercel.json` | Configuración de despliegue. |
+| `notebooks/` | 01 initial EDA and cleaning · 02 EDA and feature engineering · 03 TF-IDF recommender · 04 embeddings recommender · 05 model comparison · 06 K-Means clustering |
+| `src/` | Recommender package: data loading, filters, ranking, personalisation profile, embeddings and evaluation metrics. |
+| `src/web_scraping/` | Kiwilimon scraper (`lista.py` collects URLs from the sitemap, `recetas.py` downloads each recipe). |
+| `backend/` | FastAPI app (`main.py`, `routes.py`, `schemas.py`, `settings.py`) and the AI assistant (`assistant/`). |
+| `frontend/` | Angular app. |
+| `api/index.py` | Vercel serverless entry point (serves `backend/` under `/api`). |
+| `data/processed/` | Clean recipes (`recetas_limpias.csv`) and model features (`recetas_modelo.csv`). |
+| `data/evaluation/` | Frozen evaluation set and comparison results. |
+| `models/recetas_modelo/` | Trained TF-IDF vectoriser and matrix, recipe embeddings. |
+| `tests/` | Backend tests against the real data and models. |
+| `docs/` | Written report, slides, strategy document and screenshots. |
 
-## Ejecutar en local
+## Run locally
 
-Necesitas Python 3.13 y Node 22+. Desde la raíz del repo:
-
-**1. Backend** → http://localhost:8000 (docs en `/docs`)
+Requires Python 3.13 and Node 24+. From the repository root:
 
 ```bash
+# 1. Backend → http://localhost:8000 (interactive docs at /docs)
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn backend.main:app --reload
+
+# 2. Frontend → http://localhost:4200 (in another terminal)
+cd frontend && npm install && npm start
 ```
 
-**2. Frontend** → http://localhost:4200 (en otra terminal)
+The assistant needs a free Gemini key: copy `.env.example` to `.env` and paste your key from
+[Google AI Studio](https://aistudio.google.com/apikey). Without it the chat returns 503 and everything else works.
+
+To rerun the notebooks, the embeddings experiment or the scraper, install `requirements-dev.txt`. The raw data
+is not in the repository; see the Spanish README for how to regenerate it.
+
+## Tests
 
 ```bash
-cd frontend
-npm install
-npm start
+python -m pytest -q                               # backend
+cd frontend && npm test -- --watch=false          # frontend
 ```
-
-`npm start` usa `frontend/src/environments/environment.development.ts` (`apiUrl: http://localhost:8000`).
-
-**3. Chat (asistente ChefWise).** El chat usa Gemini y necesita una clave gratuita:
-
-1. Crea la clave en [Google AI Studio](https://aistudio.google.com/apikey).
-2. En la **raíz del repo** (junto a `README.md`) crea un archivo llamado `.env` con esta línea:
-
-   ```
-   GEMINI_API_KEY=pega_aqui_tu_clave
-   ```
-
-3. Reinicia el backend (`uvicorn ...`): el `.env` se lee solo al arrancar.
-
-`.env` está en `.gitignore`, así que tu clave no se sube a GitHub.
-
-Sin clave, el chat responde `503` y el resto de la app funciona. Otras variables opcionales:
-
-| Variable | Por defecto |
-|---|---|
-| `CHEFWISE_LLM_MODEL` | `gemini-flash-lite-latest` |
-| `CHEFWISE_LLM_TIMEOUT` | `30` (segundos) |
-| `CHEFWISE_CORS_ORIGINS` | `http://localhost:4200,http://127.0.0.1:4200` |
-
-## Desplegar en Vercel
-
-1. Sube este repo a GitHub e impórtalo en [vercel.com/new](https://vercel.com/new). No cambies nada: `vercel.json` ya define ambos servicios.
-2. En *Settings → Environment Variables* añade `GEMINI_API_KEY` con tu clave (el `.env` local no se despliega). Sin ella todo funciona menos el chat. Si la añades después de desplegar, haz *Redeploy*.
-3. Despliega. `vercel.json` usa *Vercel Services*: el frontend Angular (`frontend/`) y el backend FastAPI (`api/index.py`) se despliegan juntos y comparten dominio (la API en `/api`), por eso no hace falta CORS.
-
-Con la CLI: `npm i -g vercel && vercel --prod`.
-
-## Regenerar los datos
-
-Solo si quieres rehacer los CSV y el modelo desde cero. Cadena completa:
-
-```
-scraping ─▶ datos crudos (Drive) ─▶ notebook 01 ─▶ recetas_limpias.csv ─▶ notebook 02 ─▶ recetas_modelo.csv ─▶ notebook 03 ─▶ models/
-```
-
-**Datos crudos.** No están en el repo: viven en Google Drive. Son estos dos archivos:
-
-| Archivo | Origen |
-|---|---|
-| `recetasdelaabuela.csv` | Dataset [somosnlp/RecetasDeLaAbuela](https://huggingface.co/datasets/somosnlp/RecetasDeLaAbuela) de Hugging Face. |
-| `recetas_kiwilimon.csv` | Salida del scraping: `python src/web_scraping/lista.py` crea `lista_recetas.txt` y `python src/web_scraping/recetas.py` crea `dataset_recetas.csv` (renómbralo). Necesita `pip install -r requirements-dev.txt` y `playwright install chromium`. |
-
-El notebook 01 los descarga solos con `gdown` (sin iniciar sesión ni montar Drive), así que funciona desde cualquier cuenta de Colab. Los enlaces están en `DRIVE_FILE_IDS`, en la primera celda del notebook; si subes otra versión de los archivos, pega ahí su nuevo ID (la parte central de `https://drive.google.com/file/d/<ID>/view`).
-
-**Notebooks** (`pip install -r requirements-dev.txt` y `jupyter lab`):
-
-| Notebook | Entrada | Salida |
-|---|---|---|
-| `01_limpieza_datos.ipynb` | los dos CSV crudos | `data/processed/recetas_limpias.csv` |
-| `02_variables_del_modelo.ipynb` | `recetas_limpias.csv` | `data/processed/recetas_modelo.csv` |
-| `03_modelo_tfidf.ipynb` | `recetas_modelo.csv` | `models/recetas_modelo/*.joblib` |
-| `04_recomendador_embeddings.ipynb` | `recetas_modelo.csv` | `recipe_embeddings.npy` (descarga el modelo de Hugging Face la primera vez) |
-| `05_comparacion_baseline_vs_embeddings.ipynb` | `eval_set.json`, modelos 03 y 04 | métricas en `data/evaluation/` |
-| `06_clusterizacion_kmeans.ipynb` | `recetas_modelo.csv` | análisis de K-Means (no cambia ningún archivo) |
-
-Los notebooks 04-06 son experimentos: **la app no los usa** y siempre recomienda con el TF-IDF del 03.
-
-### Cómo ejecutarlos en Google Colab
-
-Abre el notebook en Colab (*Archivo → Abrir cuaderno → GitHub* y pega la URL del repo) y ejecútalo de arriba abajo. Todos empiezan con una celda de preparación que, en Colab, clona el repo, entra en la carpeta y comprueba las librerías: solo instala las que falten o sean más viejas que lo necesario (sobre todo `scikit-learn` 1.9, la versión con la que la app carga el modelo), sin tocar lo que Colab ya trae. Lo normal es que corra a la primera, sin reiniciar. En local no hace nada.
-
-* **Cada notebook funciona por separado.** Colab abre cada uno en una máquina distinta, así que el 02 no ve la salida del 01 de otra sesión: parte del CSV que ya está en el repo (`recetas_limpias.csv`), y el 03 parte de `recetas_modelo.csv`.
-* **El 01 es el único que lee datos crudos.** Los descarga de Drive a una carpeta temporal (nunca dentro del repo) y escribe `data/processed/recetas_limpias.csv`.
-* **Para encadenar resultados nuevos** (por ejemplo, tras re-limpiar con el 01): descarga el CSV generado desde el panel de archivos de Colab, súbelo a `data/processed/` del repo (o a la sesión del siguiente notebook) y continúa con el 02 y el 03. Los archivos de una sesión de Colab se pierden al cerrarla, así que descarga lo que quieras conservar y haz commit.
-* **Local:** los mismos notebooks (`jupyter lab` desde la raíz del repo), sin la preparación.
-
-El modelo (`models/recetas_modelo/*.joblib`) debe generarse con scikit-learn 1.9 o superior (la versión de `requirements.txt`); la celda de preparación se encarga de ello en Colab. Tras regenerar el modelo, el backend comprueba al arrancar que los `.joblib` corresponden al CSV y, si no, explica el motivo.
 
 ## API
 
-| Método y ruta | Descripción |
+| Method and path | Description |
 |---|---|
-| `GET /health` | `{"status": "ok"}` |
-| `POST /recommendations` | "Sorpréndeme": top-N según etiquetas, dificultad, tiempo y país. |
-| `POST /recommendations/by-ingredients` | "Con lo que tengo": similitud con los ingredientes escritos. |
-| `GET /recipes/{recipe_id}` | Receta completa (404 si no existe). |
-| `POST /chat` | Asistente ChefWise sobre las recetas en pantalla (503 sin clave de Gemini). |
+| `GET /health` | Health check. |
+| `POST /recommendations` | "Surprise me": top N for the chosen tags, difficulty, time and country. |
+| `POST /recommendations/by-ingredients` | "With what I have": similarity with the typed ingredients. |
+| `GET /recipes/{recipe_id}` | Full recipe (404 if it does not exist). |
+| `POST /chat` | AI assistant about the recipes on screen. |
 
-Ejemplo de `POST /recommendations`:
+## Author
 
-```json
-{"tags": ["Pollo"], "difficulty": "facil", "max_time": 30, "countries": [], "exclude_ids": [], "top_n": 12}
-```
-
-* `tags`: etiquetas exactas del dataset (`Desayuno`, `Comida`, `Cena`, `Postre`, `Bebida`, `Alcohol`, `Vegetariana`, `Vegana`, `Cerdo`, `Pollo`, `Mariscos`, `Res`, `Pavo`, `Cordero`, `Pasta`, `Sopa`). Si no hay suficientes recetas con todas, el backend relaja el filtro.
-* `difficulty`: `facil | intermedio | reto`. `max_time`: minutos. `countries`: vacío = cualquiera. `exclude_ids`: recetas que no deben salir.
-* El ranking es similitud coseno (TF-IDF) con un pequeño peso de calidad (rating bayesiano).
-
-Con la API en marcha, `http://localhost:8000/docs` documenta todos los campos.
-
-## Notas
-
-* Favoritas, historial, alergias y recetas ocultas se guardan en el `localStorage` del navegador (no hay base de datos).
-* Los `.joblib` se guardaron con scikit-learn 1.9.x; `requirements.txt` fija una versión compatible.
+**Itzel Guadalupe Camacho Gómez** · [GitHub](https://github.com/lezti02)

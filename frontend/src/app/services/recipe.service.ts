@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { EMPTY, Observable, expand, last, map, tap } from 'rxjs';
-import { MetadataDto } from '../models/api.model';
+import { InteractionSignalsDto, MetadataDto } from '../models/api.model';
 import { Allergen, COMMON_ALLERGENS, Difficulty, MealCategory, Recipe, RecipePage } from '../models/recipe.model';
 import { RecipeApiService } from './recipe-api.service';
 
@@ -9,6 +9,10 @@ const ALLERGIES_KEY = 'chefwise.allergies';
 const ALLOW_ALLERGENS_KEY = 'chefwise.allowAllergenRecipes';
 const STATE_KEY = 'chefwise.recipeState';
 const SNAPSHOTS_KEY = 'chefwise.recipeSnapshots';
+const VIEWS_KEY = 'chefwise.recentViews';
+/** Recetas abiertas que viajan al recomendador (las más recientes primero). */
+const MAX_RECENT_VIEWS = 20;
+const MAX_SIGNAL_IDS = 80;
 
 /** Cuántas ideas se muestran en Sorpréndeme / Con lo que tengo. */
 const RESULTS_COUNT = 5;
@@ -62,18 +66,18 @@ export class RecipeService {
   /**
    * Las recetas YA NO viven aquí: se piden al backend (que lee el dataset real).
    * Este servicio conserva solo lo que es del usuario y todavía no tiene base
-   * de datos: favoritas, guardadas, historial, alergias y recetas ocultas.
+   * de datos: favoritas, guardadas, historial, vistas, alergias y recetas ocultas.
    *
    * Se guardan en localStorage junto con una "foto" ligera de cada receta, para
    * poder pintar Favoritas / Historial / Ocultas sin volver a pedirlas.
-   *
-   * TODO backend (etapa con base de datos): mover todo esto a /users/me/... y
-   * registrar cada acción como interacción para el recomendador.
+   * En cada petición de recomendaciones se mandan esos ids para personalizar.
    */
   private readonly _state = signal<Record<string, UserRecipeState>>(load(STATE_KEY, {}));
   private readonly _snapshots = signal<Record<string, Recipe>>(load(SNAPSHOTS_KEY, {}));
   private readonly _hiddenIds = signal<string[]>(load<string[]>(HIDDEN_KEY, []).filter(isRecipeId));
+  private readonly _recentViews = signal<string[]>(load<string[]>(VIEWS_KEY, []).filter(isRecipeId));
   readonly hiddenIds = this._hiddenIds.asReadonly();
+  readonly recentViewIds = this._recentViews.asReadonly();
 
   /** Recetas que el backend entregó en esta sesión (para poder guardar su "foto" al interactuar). */
   private readonly seen = new Map<string, Recipe>();
@@ -110,12 +114,23 @@ export class RecipeService {
   });
   readonly activeAllergyLabels = computed(() => this.activeAllergenRules().map(a => a.label));
 
+  /**
+   * Hay suficiente historial local para que el backend arme un perfil de gusto.
+   * Favoritas, guardadas, cocinadas o recetas abiertas (que no estén ocultas).
+   */
+  readonly hasTasteProfile = computed(() => {
+    const hidden = new Set(this._hiddenIds());
+    if (this._recentViews().some(id => !hidden.has(id))) return true;
+    return Object.values(this._state()).some(s => s.isFavorite || s.isSaved || !!s.lastCookedAt);
+  });
+
   constructor() {
     effect(() => save(HIDDEN_KEY, this._hiddenIds()));
     effect(() => save(ALLERGIES_KEY, this._allergies()));
     effect(() => save(ALLOW_ALLERGENS_KEY, this._allowAllergenRecipes()));
     effect(() => save(STATE_KEY, this._state()));
     effect(() => save(SNAPSHOTS_KEY, this._snapshots()));
+    effect(() => save(VIEWS_KEY, this._recentViews()));
   }
 
   private readonly withState = (predicate: (s: UserRecipeState) => boolean): Recipe[] =>
@@ -152,7 +167,18 @@ export class RecipeService {
 
   /** Receta completa (con pasos) desde GET /recipes/{id}. */
   loadRecipe(id: string): Observable<Recipe> {
-    return this.api.getRecipe(id).pipe(tap(recipe => this.ingest([recipe])));
+    return this.api.getRecipe(id).pipe(
+      tap(recipe => {
+        this.ingest([recipe]);
+        this.recordView(recipe.id);
+      })
+    );
+  }
+
+  /** Abrió el detalle: señal débil para el recomendador (las más recientes pesan). */
+  recordView(id: string): void {
+    if (!isRecipeId(id)) return;
+    this._recentViews.update(ids => [id, ...ids.filter(x => x !== id)].slice(0, MAX_RECENT_VIEWS));
   }
 
   /** Registra recetas recién recibidas del backend. */
@@ -174,17 +200,14 @@ export class RecipeService {
 
   toggleFavorite(id: string): void {
     this.updateState(id, s => ({ ...s, isFavorite: !s.isFavorite }));
-    // TODO backend: POST /api/recipes/{id}/favorite — señal positiva para el recomendador.
   }
 
   toggleSaved(id: string): void {
     this.updateState(id, s => ({ ...s, isSaved: !s.isSaved }));
-    // TODO backend: POST /api/recipes/{id}/save
   }
 
   markCooked(id: string): void {
     this.updateState(id, s => ({ ...s, lastCookedAt: new Date().toISOString() }));
-    // TODO backend: POST /api/recipes/{id}/cooked
   }
 
   /** Quita la receta del historial sin alterar si está guardada o es favorita. */
@@ -235,14 +258,12 @@ export class RecipeService {
     this.lastHidden.set(this.seen.get(id) ?? null);
     clearTimeout(this.lastHiddenTimer);
     this.lastHiddenTimer = setTimeout(() => this.lastHidden.set(null), 6000);
-    // TODO backend: POST /api/recipes/{id}/hide
   }
 
   unhide(id: string): void {
     this._hiddenIds.update(ids => ids.filter(x => x !== id));
     if (this.lastHidden()?.id === id) this.lastHidden.set(null);
     this.prune();
-    // TODO backend: DELETE /api/recipes/{id}/hide
   }
 
   undoLastHide(): void {
@@ -325,6 +346,7 @@ export class RecipeService {
         countries: query.country ? [query.country] : [],
         exclude_ids: this.excludedIds(query.extraExcludeIds),
         top_n: hasAllergies ? RESULTS_COUNT_WITH_ALLERGIES : RESULTS_COUNT,
+        ...this.interactionSignals(),
       })
       .pipe(
         map(list => this.filterForUser(list).slice(0, RESULTS_COUNT)),
@@ -350,6 +372,7 @@ export class RecipeService {
           top_n: RESULTS_COUNT,
           offset,
           fewest_extras: query.fewestExtras,
+          ...this.interactionSignals(),
         })
         .pipe(map(page => ({ page, offset, recipes: [...kept, ...this.filterForUser(page.recipes)] })));
 
@@ -370,6 +393,37 @@ export class RecipeService {
       .filter(([, s]) => !!s.lastCookedAt)
       .map(([id]) => id);
     return [...new Set([...this._hiddenIds(), ...cooked, ...extra])].filter(isRecipeId).map(Number);
+  }
+
+  /**
+   * Señales que ya existen en el navegador. Solo se mandan las listas con algo,
+   * para no cambiar el contrato cuando la persona aún no ha interactuado.
+   */
+  private interactionSignals(): InteractionSignalsDto {
+    const state = this._state();
+    const idsOf = (predicate: (s: UserRecipeState) => boolean): number[] =>
+      Object.entries(state)
+        .filter(([, s]) => predicate(s))
+        .map(([id]) => id)
+        .filter(isRecipeId)
+        .map(Number)
+        .slice(0, MAX_SIGNAL_IDS);
+
+    const hidden = new Set(this._hiddenIds());
+    const viewed_ids = this._recentViews()
+      .filter(id => !hidden.has(id) && isRecipeId(id))
+      .map(Number)
+      .slice(0, MAX_RECENT_VIEWS);
+
+    const signals: InteractionSignalsDto = {};
+    const favorite_ids = idsOf(s => s.isFavorite);
+    const saved_ids = idsOf(s => s.isSaved);
+    const cooked_ids = idsOf(s => !!s.lastCookedAt);
+    if (favorite_ids.length) signals.favorite_ids = favorite_ids;
+    if (saved_ids.length) signals.saved_ids = saved_ids;
+    if (cooked_ids.length) signals.cooked_ids = cooked_ids;
+    if (viewed_ids.length) signals.viewed_ids = viewed_ids;
+    return signals;
   }
 }
 
