@@ -3,6 +3,8 @@
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
 
 # Frontend
 node_modules/
@@ -11,8 +13,12 @@ dist/
 
 # Secretos
 .env
+.env.*
+!.env.example
 
-# Copia local del modelo de embeddings (~470 MB): se vuelve a descargar de Hugging Face
+# Datos crudos (viven en Google Drive) y copia local del modelo de embeddings (~470 MB)
+data/raw/*
+models/*.pkl
 models/embedding_model/
 notebooks/figures/
 
@@ -20,7 +26,9 @@ notebooks/figures/
 lista_recetas.txt
 dataset_recetas.csv
 
+# Archivos temporales
+.scratch*/
+
 # Sistema / Vercel
 .DS_Store
 .vercel
-.env*
